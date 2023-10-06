@@ -4,6 +4,45 @@ use rust_pie_ob::PieOrderBook;
 
 #[test]
 fn process_limit_order1() {
+    let mut pie_ob = PieOrderBook::new(dec!(10), 4);
+
+    use rust_pie_ob::errors::ProcessLimitOrder as E;
+    assert_eq!(
+        pie_ob.process_limit_order(0, 4, rust_ob::Side::Buy, dec!(3), dec!(5)),
+        Err(E::OrderValidationFailed)
+    );
+    assert_eq!(
+        pie_ob.process_limit_order(1, 6, rust_ob::Side::Buy, dec!(3), dec!(5)),
+        Err(E::OrderValidationFailed)
+    );
+    assert_eq!(
+        pie_ob.process_limit_order(2, 1, rust_ob::Side::Buy, dec!(15), dec!(5)),
+        Err(E::OrderValidationFailed)
+    );
+    assert_eq!(
+        pie_ob.process_limit_order(3, 2, rust_ob::Side::Buy, dec!(10), dec!(10)),
+        Err(E::OrderValidationFailed)
+    );
+    assert_eq!(
+        pie_ob.process_limit_order(4, 3, rust_ob::Side::Buy, dec!(-1), dec!(15)),
+        Err(E::OrderValidationFailed)
+    );
+    assert_eq!(
+        pie_ob.process_limit_order(5, 1, rust_ob::Side::Buy, dec!(0), dec!(12)),
+        Err(E::OrderValidationFailed)
+    );
+    assert_eq!(
+        pie_ob.process_limit_order(6, 0, rust_ob::Side::Buy, dec!(3), dec!(0)),
+        Err(E::OrderValidationFailed)
+    );
+    assert_eq!(
+        pie_ob.process_limit_order(7, 2, rust_ob::Side::Buy, dec!(3), dec!(-1)),
+        Err(E::OrderValidationFailed)
+    );
+}
+
+#[test]
+fn process_limit_order2() {
     let mut pie_ob = PieOrderBook::new(dec!(10), 2);
 
     let res = pie_ob
