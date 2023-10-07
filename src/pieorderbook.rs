@@ -68,11 +68,13 @@ where
                 self.get_other_order_books_best_price_quantity(outcome, side.opposite());
 
             if match side {
+                // buys match to own order book at same price
                 Side::Buy => {
                     price >= own_price && !(own_price > others_price && !others_quantity.is_zero())
                 }
+                // sells match to other order books at same price
                 Side::Sell => {
-                    price <= own_price && !(own_price < others_price && !others_quantity.is_zero())
+                    price <= own_price && !(own_price <= others_price && !others_quantity.is_zero())
                 }
             } {
                 // match in own outcome order book
