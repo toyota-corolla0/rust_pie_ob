@@ -1,10 +1,11 @@
-use std::{collections::HashMap, hash::Hash};
+use std::{collections::HashMap, fmt::Display, hash::Hash};
 
 use rust_decimal::Decimal;
 use rust_ob::{OrderBook, OrderMatch, Side};
 
 use crate::errors;
 
+#[derive(Debug)]
 pub struct PieOrderBook<OrderID>
 where
     OrderID: Copy + PartialEq + Eq + Hash,
@@ -18,7 +19,7 @@ where
     OrderID: Copy + PartialEq + Eq + Hash,
 {
     /// Create new `PieOrderBook`
-    /// 
+    ///
     /// IMPORTANT: This function panics if outcomes is less than 2
     pub fn new(contract_price: Decimal, outcomes: usize) -> Self {
         if outcomes < 2 {
@@ -91,7 +92,6 @@ where
                 quantity = quantity
                     .checked_sub(satisfied_quantity)
                     .expect("PieOrderBook: subtraction overflow");
-
             } else if match side {
                 Side::Buy => price >= others_price && !others_quantity.is_zero(),
                 Side::Sell => price <= others_price && !others_quantity.is_zero(),
@@ -139,7 +139,7 @@ where
         if !quantity.is_zero() {
             assert_eq!(
                 self.order_books[outcome]
-                    .process_limit_order(id, Side::Buy, price, quantity)
+                    .process_limit_order(id, side, price, quantity)
                     .expect("PieOrderBook::process_limit_order: should never panic")
                     .len(),
                 0
@@ -157,7 +157,9 @@ where
     /// outcome of order is required for finding the order book where the
     /// order exists. If the outcome is incorrect, this function will panic.
     pub fn cancel_order(&mut self, outcome: usize, id: OrderID) {
-        self.order_books[outcome]
+        self.order_books
+            .get_mut(outcome)
+            .expect("PieOrderBook::cancel_order: given outcome did not yield order_book")
             .cancel_order(id)
             .expect("PieOrderBook::cancel_order: error on cancel_order");
     }
@@ -221,3 +223,18 @@ where
     }
 }
 
+impl<OrderID> Display for PieOrderBook<OrderID>
+where
+    OrderID: Copy + PartialEq + Eq + Hash + Display,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "Contract Price: {}", self.contract_price)?;
+
+        for i in 0..self.order_books.len() {
+            writeln!(f, "\n-----OUTCOME ORDERBOOK {}-----", i)?;
+            write!(f, "{}", self.order_books[i])?;
+        }
+
+        write!(f, "")
+    }
+}
