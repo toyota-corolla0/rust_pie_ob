@@ -105,7 +105,7 @@ where
                     }
 
                     let order_match_vec = self.order_books[i]
-                                .process_market_order(id, Side::Sell, satisfied_quantity)
+                                .process_market_order(id, side.opposite(), satisfied_quantity)
                                 .expect("PieOrderBook::process_limit_order: order with id already exists in other outcome OrderBook");
 
                     assert_ne!(order_match_vec.len(), 0);
@@ -115,14 +115,19 @@ where
                     }
                 }
 
+                let mut cost = others_price
+                    .checked_mul(satisfied_quantity)
+                    .expect("PieOrderBook: multiplication overflow");
+                if let Side::Sell = side {
+                    cost.set_sign_negative(true);
+                }
+
                 Self::add_order_match_to_map(
                     &mut order_match_map,
                     &OrderMatch {
                         order: id,
                         quantity: satisfied_quantity,
-                        cost: others_price
-                            .checked_mul(satisfied_quantity)
-                            .expect("PieOrderBook: multiplication overflow"),
+                        cost,
                     },
                 );
 

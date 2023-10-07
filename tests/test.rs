@@ -1,4 +1,3 @@
-use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 use rust_ob::{OrderMatch, Side};
 use rust_pie_ob::PieOrderBook;
@@ -383,8 +382,6 @@ fn general2() {
         0
     );
 
-    println!("{pie_ob}");
-
     let mut res = pie_ob
         .process_limit_order(22, 2, Side::Buy, dec!(64), dec!(17))
         .unwrap();
@@ -419,4 +416,44 @@ fn general2() {
             },
         ]
     );
+
+    assert_eq!(
+        pie_ob
+        .process_limit_order(23, 1, Side::Sell, dec!(30), dec!(2))
+        .unwrap()
+        .len(),
+        0
+    );
+
+    let mut res = pie_ob
+        .process_limit_order(24, 2, Side::Sell, dec!(50), dec!(3))
+        .unwrap();
+    res.sort_by(|v1, v2| v1.order.cmp(&v2.order));
+    assert_eq!(
+        res,
+        vec![
+            OrderMatch {
+                order: 6,
+                quantity: dec!(2),
+                cost: dec!(-22)
+            },
+            OrderMatch {
+                order: 17,
+                quantity: dec!(1),
+                cost: dec!(59)
+            },
+            OrderMatch {
+                order: 23,
+                quantity: dec!(2),
+                cost: dec!(-60)
+            },
+            OrderMatch {
+                order: 24,
+                quantity: dec!(3),
+                cost: dec!(-177)
+            },
+        ]
+    );
+
+    println!("{pie_ob}");
 }
