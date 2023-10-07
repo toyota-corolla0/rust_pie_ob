@@ -18,7 +18,8 @@ where
     OrderID: Copy + PartialEq + Eq + Hash,
 {
     /// Create new `PieOrderBook`
-    /// This function panics if outcomes is less than 2
+    /// 
+    /// IMPORTANT: This function panics if outcomes is less than 2
     pub fn new(contract_price: Decimal, outcomes: usize) -> Self {
         if outcomes < 2 {
             panic!("PieOrderBook: new: outcomes must always be 2 or greater")
@@ -36,7 +37,7 @@ where
     }
 
     /// Process a new limit order
-    /// 
+    ///
     /// IMPORTANT: PieOrderBook will possibly panic if another order
     /// with the same id exists already inside PieOrderBook
     pub fn process_limit_order(
@@ -58,95 +59,99 @@ where
         }
 
         // process order
-        match side {
-            Side::Buy => {
-                let mut order_match_map: HashMap<OrderID, OrderMatch<OrderID>> = HashMap::new();
+        let mut order_match_map: HashMap<OrderID, OrderMatch<OrderID>> = HashMap::new();
 
-                while quantity > Decimal::ZERO {
-                    let (own_price, own_quantity) = self.get_own_order_book_price_quantity(outcome);
-                    let (others_price, others_quantity) =
-                        self.get_other_order_books_price_quantity(outcome);
+        while quantity > Decimal::ZERO {
+            let (own_price, own_quantity) =
+                self.get_order_book_best_price_quantity(outcome, side.opposite());
+            let (others_price, others_quantity) =
+                self.get_other_order_books_best_price_quantity(outcome, side.opposite());
 
-                    if price < own_price.min(others_price) {
-                        break;
-                    }
+            if match side {
+                Side::Buy => {
+                    price >= own_price && !(own_price > others_price && !others_quantity.is_zero())
+                }
+                Side::Sell => {
+                    price <= own_price && !(own_price < others_price && !others_quantity.is_zero())
+                }
+            } {
+                // match in own outcome order book
+                let satisfied_quantity = own_quantity.min(quantity);
 
-                    if own_price <= others_price { // match in own outcome order book
-                        let satisfied_quantity = own_quantity.min(quantity);
-
-                        let order_match_vec = self.order_books[outcome]
-                            .process_market_order(id, Side::Buy, satisfied_quantity)
+                let order_match_vec = self.order_books[outcome]
+                            .process_market_order(id, side, satisfied_quantity)
                             .expect("PieOrderBook::process_limit_order: order with id already exists in own outcome OrderBook");
 
-                        for order_match in order_match_vec {
-                            Self::add_order_match_to_map(&mut order_match_map, &order_match)
-                        }
+                for order_match in order_match_vec {
+                    Self::add_order_match_to_map(&mut order_match_map, &order_match)
+                }
 
-                        quantity = quantity
-                            .checked_sub(satisfied_quantity)
-                            .expect("PieOrderBook: subtraction overflow");
+                quantity = quantity
+                    .checked_sub(satisfied_quantity)
+                    .expect("PieOrderBook: subtraction overflow");
 
-                    } else { // match in other outcome order books
-                        let satisfied_quantity = others_quantity.min(quantity);
+            } else if match side {
+                Side::Buy => price >= others_price && !others_quantity.is_zero(),
+                Side::Sell => price <= others_price && !others_quantity.is_zero(),
+            } {
+                // match in other outcome order books
+                let satisfied_quantity = others_quantity.min(quantity);
 
-                        for (i, other_outcome_ob) in self.order_books.iter_mut().enumerate() {
-                            if i == outcome {
-                                continue;
-                            }
+                for i in 0..self.order_books.len() {
+                    if i == outcome {
+                        continue;
+                    }
 
-                            let order_match_vec = other_outcome_ob
+                    let order_match_vec = self.order_books[i]
                                 .process_market_order(id, Side::Sell, satisfied_quantity)
                                 .expect("PieOrderBook::process_limit_order: order with id already exists in other outcome OrderBook");
 
-                            for order_match in order_match_vec.iter().rev().skip(1) {
-                                Self::add_order_match_to_map(&mut order_match_map, order_match)
-                            }
-                        }
+                    assert_ne!(order_match_vec.len(), 0);
 
-                        Self::add_order_match_to_map(
-                            &mut order_match_map,
-                            &OrderMatch {
-                                order: id,
-                                quantity: satisfied_quantity,
-                                cost: others_price
-                                    .checked_mul(satisfied_quantity)
-                                    .expect("PieOrderBook: multiplication overflow"),
-                            },
-                        );
-
-                        quantity = quantity
-                            .checked_sub(satisfied_quantity)
-                            .expect("PieOrderBook: subtraction overflow");
+                    for order_match in order_match_vec.iter().rev().skip(1) {
+                        Self::add_order_match_to_map(&mut order_match_map, order_match)
                     }
                 }
 
-                // add remaining to outcome orderbook if not empty
-                if !quantity.is_zero() {
-                    assert_eq!(
-                        self.order_books[outcome]
-                            .process_limit_order(id, Side::Buy, price, quantity)
-                            .expect("PieOrderBook::process_limit_order: should never panic")
-                            .len(),
-                        0
-                    );
-                }
+                Self::add_order_match_to_map(
+                    &mut order_match_map,
+                    &OrderMatch {
+                        order: id,
+                        quantity: satisfied_quantity,
+                        cost: others_price
+                            .checked_mul(satisfied_quantity)
+                            .expect("PieOrderBook: multiplication overflow"),
+                    },
+                );
 
-                Ok(order_match_map.into_values().collect())
-            }
-
-            Side::Sell => {
-                // sell side only matches in own outcome order book
-                Ok(self.order_books[outcome].process_limit_order(id, Side::Sell, price, quantity)
-                    .expect("PieOrderBook::process_limit_order: order with id already exists in own outcome OrderBook"))
+                quantity = quantity
+                    .checked_sub(satisfied_quantity)
+                    .expect("PieOrderBook: subtraction overflow");
+            } else {
+                // nothing satisfies
+                break;
             }
         }
+
+        // add remaining to outcome orderbook if not empty
+        if !quantity.is_zero() {
+            assert_eq!(
+                self.order_books[outcome]
+                    .process_limit_order(id, Side::Buy, price, quantity)
+                    .expect("PieOrderBook::process_limit_order: should never panic")
+                    .len(),
+                0
+            );
+        }
+
+        Ok(order_match_map.into_values().collect())
     }
 
     /// Cancel an order
-    /// 
+    ///
     /// IMPORTANT: PieOrderBook will panic if you try to cancel an order that
     /// does not exist within PieOrderBook
-    /// 
+    ///
     /// outcome of order is required for finding the order book where the
     /// order exists. If the outcome is incorrect, this function will panic.
     pub fn cancel_order(&mut self, outcome: usize, id: OrderID) {
@@ -155,24 +160,30 @@ where
             .expect("PieOrderBook::cancel_order: error on cancel_order");
     }
 
-    fn get_own_order_book_price_quantity(&self, outcome: usize) -> (Decimal, Decimal) {
-        self.order_books[outcome]
-            .get_highest_priority_price_quantity(Side::Sell)
-            .unwrap_or((self.contract_price, Decimal::ZERO))
+    fn get_order_book_best_price_quantity(&self, outcome: usize, side: Side) -> (Decimal, Decimal) {
+        let res = self.order_books[outcome].get_highest_priority_price_quantity(side);
+
+        match side {
+            Side::Buy => res.unwrap_or((Decimal::ZERO, Decimal::ZERO)),
+            Side::Sell => res.unwrap_or((self.contract_price, Decimal::ZERO)),
+        }
     }
 
-    fn get_other_order_books_price_quantity(&self, outcome: usize) -> (Decimal, Decimal) {
+    fn get_other_order_books_best_price_quantity(
+        &self,
+        outcome: usize,
+        side: Side,
+    ) -> (Decimal, Decimal) {
         let mut price = self.contract_price;
         let mut quantity = Decimal::MAX;
 
-        for (i, ob) in self.order_books.iter().enumerate() {
+        for i in 0..self.order_books.len() {
             if i == outcome {
                 continue;
             }
 
-            let (highest_priority_price, highest_priority_quantity) = ob
-                .get_highest_priority_price_quantity(Side::Buy)
-                .unwrap_or((Decimal::ZERO, Decimal::MAX));
+            let (highest_priority_price, highest_priority_quantity) =
+                self.get_order_book_best_price_quantity(i, side.opposite());
 
             price = price
                 .checked_sub(highest_priority_price)
@@ -207,3 +218,4 @@ where
         }
     }
 }
+
