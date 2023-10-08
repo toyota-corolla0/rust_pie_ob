@@ -376,9 +376,9 @@ fn general2() {
     );
     assert_eq!(
         pie_ob
-        .process_limit_order(21, 2, Side::Sell, dec!(63), dec!(5))
-        .unwrap()
-        .len(),
+            .process_limit_order(21, 2, Side::Sell, dec!(63), dec!(5))
+            .unwrap()
+            .len(),
         0
     );
 
@@ -419,9 +419,9 @@ fn general2() {
 
     assert_eq!(
         pie_ob
-        .process_limit_order(23, 1, Side::Sell, dec!(30), dec!(2))
-        .unwrap()
-        .len(),
+            .process_limit_order(23, 1, Side::Sell, dec!(30), dec!(2))
+            .unwrap()
+            .len(),
         0
     );
 
@@ -455,5 +455,116 @@ fn general2() {
         ]
     );
 
-    println!("{pie_ob}");
+    let mut res = pie_ob
+        .process_limit_order(25, 0, Side::Sell, dec!(5), dec!(44))
+        .unwrap();
+    res.sort_by(|v1, v2| v1.order.cmp(&v2.order));
+    assert_eq!(
+        res,
+        vec![
+            OrderMatch {
+                order: 1,
+                quantity: dec!(14),
+                cost: dec!(112)
+            },
+            OrderMatch {
+                order: 3,
+                quantity: dec!(12),
+                cost: dec!(84)
+            },
+            OrderMatch {
+                order: 13,
+                quantity: dec!(3),
+                cost: dec!(-93)
+            },
+            OrderMatch {
+                order: 21,
+                quantity: dec!(3),
+                cost: dec!(-189)
+            },
+            OrderMatch {
+                order: 25,
+                quantity: dec!(29),
+                cost: dec!(-214)
+            },
+        ]
+    );
+
+    assert_eq!(
+        pie_ob
+            .process_limit_order(26, 2, Side::Buy, dec!(64), dec!(4))
+            .unwrap()
+            .len(),
+        0
+    );
+
+    let mut res = pie_ob
+        .process_limit_order(27, 0, Side::Buy, dec!(13), dec!(36))
+        .unwrap();
+    res.sort_by(|v1, v2| v1.order.cmp(&v2.order));
+    assert_eq!(
+        res,
+        vec![
+            OrderMatch {
+                order: 6,
+                quantity: dec!(4),
+                cost: dec!(-44)
+            },
+            OrderMatch {
+                order: 7,
+                quantity: dec!(11),
+                cost: dec!(-132)
+            },
+            OrderMatch {
+                order: 8,
+                quantity: dec!(1),
+                cost: dec!(25)
+            },
+            OrderMatch {
+                order: 9,
+                quantity: dec!(3),
+                cost: dec!(87)
+            },
+            OrderMatch {
+                order: 25,
+                quantity: dec!(15),
+                cost: dec!(-75)
+            },
+            OrderMatch {
+                order: 26,
+                quantity: dec!(4),
+                cost: dec!(256)
+            },
+            OrderMatch {
+                order: 27,
+                quantity: dec!(34),
+                cost: dec!(283)
+            },
+        ]
+    );
+
+    let mut res = pie_ob
+        .process_limit_order(28, 2, Side::Sell, dec!(57), dec!(25))
+        .unwrap();
+    res.sort_by(|v1, v2| v1.order.cmp(&v2.order));
+    assert_eq!(
+        res,
+        vec![
+            OrderMatch {
+                order: 16,
+                quantity: dec!(20),
+                cost: dec!(1140)
+            },
+            OrderMatch {
+                order: 17,
+                quantity: dec!(4),
+                cost: dec!(236)
+            },
+            OrderMatch {
+                order: 28,
+                quantity: dec!(24),
+                cost: dec!(-1376)
+            },
+        ]
+    );
 }
