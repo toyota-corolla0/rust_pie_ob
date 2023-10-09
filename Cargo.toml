@@ -1,6 +1,6 @@
 [package]
 name = "rust_pie_ob"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 description = "a pie orderbook library for rust"
 readme = "README.md"
